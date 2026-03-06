@@ -32,6 +32,7 @@ model Patient {
   createdAt    DateTime      @default(now())
   appointments Appointment[]
   treatments   Treatment[]
+  photos       Photo[]
 }
 
 model Appointment {
@@ -62,4 +63,16 @@ model Treatment {
   appointment   Appointment? @relation(fields: [appointmentId], references: [id])
   patient       Patient      @relation(fields: [patientId], references: [id])
   doctor        User         @relation("DoctorTreatments", fields: [doctorId], references: [id])
+  photos        Photo[]
+}
+
+model Photo {
+  id          String     @id @default(cuid())
+  url         String
+  description String?
+  patientId   String
+  treatmentId String?
+  createdAt   DateTime   @default(now())
+  patient     Patient    @relation(fields: [patientId], references: [id])
+  treatment   Treatment? @relation(fields: [treatmentId], references: [id])
 }

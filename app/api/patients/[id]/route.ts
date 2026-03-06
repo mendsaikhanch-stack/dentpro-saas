@@ -11,6 +11,7 @@ export async function GET(
     include: {
       appointments: { include: { doctor: true }, orderBy: { date: "desc" } },
       treatments: { include: { doctor: true }, orderBy: { createdAt: "desc" } },
+      photos: { orderBy: { createdAt: "desc" } },
     },
   });
 

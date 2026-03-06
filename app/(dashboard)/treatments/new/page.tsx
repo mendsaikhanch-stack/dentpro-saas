@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -20,11 +20,20 @@ const treatmentTypes = [
   "Бусад",
 ];
 
+interface UploadedPhoto {
+  url: string;
+  preview: string;
+  name: string;
+}
+
 export default function NewTreatmentPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [photos, setPhotos] = useState<UploadedPhoto[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     patientId: "",
     doctorId: "",
@@ -39,6 +48,27 @@ export default function NewTreatmentPage() {
     fetch("/api/users?role=DOCTOR").then((r) => r.json()).then(setDoctors).catch(() => {});
   }, []);
 
+  const handleUploadPhotos = async (files: FileList) => {
+    setUploading(true);
+    for (const file of Array.from(files)) {
+      if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+        alert("Зөвхөн JPG, PNG, WebP формат зөвшөөрнө");
+        continue;
+      }
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) continue;
+      const { url } = await res.json();
+      setPhotos((prev) => [...prev, { url, preview: URL.createObjectURL(file), name: file.name }]);
+    }
+    setUploading(false);
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -50,6 +80,25 @@ export default function NewTreatmentPage() {
     });
 
     if (res.ok) {
+      const treatment = await res.json();
+
+      // Зургуудыг эмчилгээтэй холбох
+      if (photos.length > 0 && form.patientId) {
+        await Promise.all(
+          photos.map((photo) =>
+            fetch("/api/photos", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                url: photo.url,
+                patientId: form.patientId,
+                treatmentId: treatment.id,
+              }),
+            })
+          )
+        );
+      }
+
       router.push("/treatments");
     } else {
       alert("Алдаа гарлаа");
@@ -147,6 +196,50 @@ export default function NewTreatmentPage() {
             rows={3}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
           />
+        </div>
+
+        {/* Зураг хавсаргах */}
+        <div className="mt-6">
+          <label className="block text-sm font-medium text-gray-700 mb-2">Зураг хавсаргах</label>
+          <div className="flex items-center gap-3 mb-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-sm border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              {uploading ? "Оруулж байна..." : "Зураг сонгох"}
+            </button>
+            <span className="text-xs text-gray-400">JPG, PNG, WebP</span>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            onChange={(e) => e.target.files && handleUploadPhotos(e.target.files)}
+            className="hidden"
+          />
+          {photos.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {photos.map((photo, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={photo.preview}
+                    alt={photo.name}
+                    className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="mt-6 flex gap-3">
